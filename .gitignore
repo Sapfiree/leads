@@ -1,0 +1,15 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+output/
+*.xlsx
+!sample_input.csv
+.DS_Store
+Thumbs.db
+.env
+*.log
