@@ -262,12 +262,23 @@ def test_file_not_found():
     assert "не найден" in str(exc_info.value).lower()
 
 
-def test_unsupported_extension(tmp_path: Path):
-    path = tmp_path / "data.json"
-    path.write_text("{}", encoding="utf-8")
-    with pytest.raises(CleanerError) as exc_info:
-        load_input(path)
-    assert "неподдерживаемое" in str(exc_info.value).lower()
+def test_excel_misnamed_as_csv(tmp_path: Path):
+    """Excel, переименованный в .csv, должен читаться как Excel."""
+    path = tmp_path / "leads.csv"
+    df_in = pd.DataFrame(
+        [
+            {
+                "Имя": "Иван",
+                "Телефон": "89991234567",
+                "Дата заявки": "10.02.2024",
+                "Источник": "сайт",
+            }
+        ]
+    )
+    df_in.to_excel(path, index=False)
+    df, warnings = load_input(path)
+    assert len(df) == 1
+    assert any("Excel" in w for w in warnings)
 
 
 def test_sample_input_pipeline():

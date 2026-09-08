@@ -308,10 +308,37 @@ def detect_delimiter(sample: str) -> str:
     return best_sep
 
 
+def _detect_excel_format(raw_bytes: bytes) -> str | None:
+    """Определяет Excel по сигнатуре, даже если расширение неверное."""
+    if raw_bytes.startswith(b"PK"):
+        return "xlsx"
+    # OLE Compound Document — старый .xls
+    if raw_bytes.startswith(bytes.fromhex("d0cf11e0a1b11ae1")):
+        return "xls"
+    return None
+
+
+def _read_excel(path: Path) -> pd.DataFrame:
+    try:
+        return pd.read_excel(path, dtype=object)
+    except Exception as exc:  # noqa: BLE001
+        raise CleanerError(f"Ошибка чтения Excel «{path}»: {exc}") from exc
+
+
 def _read_text_table(path: Path) -> tuple[pd.DataFrame, list[str]]:
     warnings: list[str] = []
     encodings = ("utf-8-sig", "utf-8", "cp1251")
     raw_bytes = path.read_bytes()
+
+    excel_kind = _detect_excel_format(raw_bytes)
+    if excel_kind is not None:
+        warnings.append(
+            f"Файл «{path.name}» по содержимому является Excel (.{excel_kind}), "
+            f"хотя расширение «{path.suffix}». Читаю как Excel. "
+            "Лучше переименовать в .xlsx/.xls или сохранить через «Файл → Сохранить как → CSV»."
+        )
+        return _read_excel(path), warnings
+
     text: str | None = None
     used_encoding: str | None = None
 
@@ -325,8 +352,10 @@ def _read_text_table(path: Path) -> tuple[pd.DataFrame, list[str]]:
 
     if text is None or used_encoding is None:
         raise CleanerError(
-            f"Не удалось прочитать файл «{path}»: неподдерживаемая кодировка. "
-            "Ожидаются UTF-8, UTF-8-SIG или cp1251."
+            f"Не удалось прочитать файл «{path}»: это не текстовый CSV/TXT "
+            "в кодировке UTF-8, UTF-8-SIG или cp1251. "
+            "Если это Excel — укажите файл с расширением .xlsx/.xls "
+            "(простое переименование в .csv не конвертирует формат)."
         )
 
     lines = [line for line in text.splitlines() if line.strip()]
@@ -370,17 +399,24 @@ def load_input(path: Path) -> tuple[pd.DataFrame, list[str]]:
     warnings: list[str] = []
 
     if suffix in {".xlsx", ".xls"}:
-        try:
-            df = pd.read_excel(path, dtype=object)
-        except Exception as exc:  # noqa: BLE001
-            raise CleanerError(f"Ошибка чтения Excel «{path}»: {exc}") from exc
+        df = _read_excel(path)
     elif suffix in {".csv", ".txt"}:
         df, warnings = _read_text_table(path)
     else:
-        raise CleanerError(
-            f"Неподдерживаемое расширение «{suffix}». "
-            "Допустимы: .xlsx, .xls, .csv, .txt."
-        )
+        # На случай расширения вроде .CSV.XLSX или без расширения — пробуем по сигнатуре
+        raw_bytes = path.read_bytes()[:8]
+        excel_kind = _detect_excel_format(raw_bytes)
+        if excel_kind is not None:
+            warnings.append(
+                f"Расширение «{suffix or '(нет)'}» нестандартное, "
+                f"но файл похож на Excel (.{excel_kind}). Читаю как Excel."
+            )
+            df = _read_excel(path)
+        else:
+            raise CleanerError(
+                f"Неподдерживаемое расширение «{suffix}». "
+                "Допустимы: .xlsx, .xls, .csv, .txt."
+            )
 
     if df.empty:
         raise CleanerError(f"Файл «{path}» пуст: нет строк данных.")

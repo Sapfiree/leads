@@ -29,18 +29,26 @@ def _configure_stdio() -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Очистка и нормализация заявок клиентов из Excel/CSV/TXT.",
+        description=(
+            "Очистка и нормализация заявок клиентов.\n\n"
+            "Как указать свой файл:\n"
+            "  1) Положи Excel/CSV в эту папку (или укажи полный путь).\n"
+            "  2) Запусти: python clean_leads.py ИМЯ_ФАЙЛА --output-dir output\n"
+            "  3) Результат смотри в папке output/.\n"
+            "Не переименовывай .xlsx в .csv вручную — оставь исходное расширение."
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Примеры:\n"
-            "  python clean_leads.py leads.xlsx\n"
-            "  python clean_leads.py leads.csv --output-dir ./output\n"
+            "  python clean_leads.py leads.xlsx --output-dir output\n"
+            "  python clean_leads.py sample_input.csv --output-dir output\n"
+            "  python clean_leads.py \"D:\\data\\заявки.xlsx\" --output-dir output\n"
         ),
     )
     parser.add_argument(
         "input_file",
         type=str,
-        help="Путь к входному файлу (.xlsx, .xls, .csv, .txt)",
+        help="Путь к входному файлу заявок (.xlsx, .xls, .csv, .txt)",
     )
     parser.add_argument(
         "--output-dir",

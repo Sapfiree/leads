@@ -13,3 +13,5 @@ output/
 Thumbs.db
 .env
 *.log
+*.bin
+user_backup*
